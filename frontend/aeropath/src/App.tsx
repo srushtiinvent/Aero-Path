@@ -760,8 +760,7 @@ function TravelLoopDivider() {
 
   return (
     <section className="travel-loop-divider" aria-label="Take the scenic route with AeroPath">
-      <svg className="wavy-ribbon" viewBox="0 -36 1440 252" preserveAspectRatio="none" role="img" aria-label="AeroPath scenic route ribbon">
-        <defs>
+        <svg className="wavy-ribbon" viewBox="0 -36 1440 252" preserveAspectRatio="xMidYMid slice" role="img" aria-label="AeroPath scenic route ribbon">        <defs>
           <path
             id="aeropath-ribbon-path"
             d="M-120 92 C0 172 120 172 240 92 S480 12 600 92 S840 172 960 92 S1200 12 1320 92 S1560 172 1680 92"
