@@ -12,9 +12,11 @@ import {
   Upload, UserRound, UsersRound, X, Zap,
 } from 'lucide-react';
 import { Route, Switch, Router as WouterRouter, useLocation } from 'wouter';
+import { motion } from 'framer-motion';
 import worldGeoJson from './data/world.json';
 
 const queryClient = new QueryClient();
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api').replace(/\/$/, '');
 
 type Flight = {
   id: string; airline: string; code: string; from: string; to: string;
@@ -90,11 +92,12 @@ function NavBar({ view, onNavigate, onAccount, theme, onThemeToggle, navigationP
             <button data-nav-id="home" onClick={() => onNavigate('home')} className={`nav-link ${view === 'home' ? 'active' : ''}`} data-testid="nav-home"><House size={14} /> Home</button>
             <button data-nav-id="add" onClick={() => onNavigate('add')} className={`nav-link ${view === 'add' || view === 'results' ? 'active' : ''}`} data-testid="nav-add-trip"><Plus size={14} /> Add trip</button>
             <button data-nav-id="boarding" onClick={() => onNavigate('boarding')} className={`nav-link ${view === 'boarding' ? 'active' : ''}`} data-testid="nav-boarding-pass"><CreditCard size={14} /> Boarding pass</button>
+            <button data-nav-id="tracking" onClick={() => onNavigate('tracking')} className={`nav-link ${view === 'tracking' ? 'active' : ''}`} data-testid="nav-live-tracking"><Plane size={14} /> Live tracking</button>
             <button data-nav-id="help" onClick={() => onNavigate('help')} className={`nav-link ${view === 'help' ? 'active' : ''}`} data-testid="nav-help"><CircleHelp size={14} /> Help</button>
             <button data-nav-id="map" onClick={() => onNavigate('map')} className={`nav-link ${view === 'map' ? 'active' : ''}`} data-testid="nav-travel-map"><Globe2 size={14} /> Travel map</button>
           </nav>
           <AnimatedThemeToggler theme={theme} onToggle={onThemeToggle} />
-          <button onClick={onAccount} className="profile-button" data-testid="button-profile"><span className="profile-avatar">JM</span> Profile</button>
+          <button onClick={onAccount} className="profile-button" data-testid="button-profile"><UserRound size={16} /> Profile</button>
         </div>
         <button onClick={() => setMenuOpen(!menuOpen)} className="grid size-10 place-items-center rounded-full border border-[#dfd8ca] md:hidden" aria-label="Open menu" data-testid="button-mobile-menu">{menuOpen ? <X size={19} /> : <Menu size={19} />}</button>
       </div>
@@ -103,6 +106,7 @@ function NavBar({ view, onNavigate, onAccount, theme, onThemeToggle, navigationP
           <button onClick={() => { onNavigate('home'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-home"><House size={15} /> Home</button>
           <button onClick={() => { onNavigate('add'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-add-trip"><Plus size={15} /> Add trip</button>
           <button onClick={() => { onNavigate('boarding'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-boarding-pass"><CreditCard size={15} /> Boarding pass</button>
+          <button onClick={() => { onNavigate('tracking'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-live-tracking"><Plane size={15} /> Live tracking</button>
           <button onClick={() => { onNavigate('help'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-help"><CircleHelp size={15} /> Help</button>
           <button onClick={() => { onNavigate('map'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-travel-map"><Globe2 size={15} /> Travel map</button>
           <button onClick={() => { onAccount(); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-profile"><UserRound size={15} /> Profile</button>
@@ -114,10 +118,10 @@ function NavBar({ view, onNavigate, onAccount, theme, onThemeToggle, navigationP
 }
 
 function SearchPanel({ onSearch }: { onSearch: (from: string, to: string, depart: string, returning: string) => void }) {
-  const [from, setFrom] = useState('San Francisco (SFO)');
-  const [to, setTo] = useState('New York (JFK)');
-  const [depart, setDepart] = useState('Oct 18, 2026');
-  const [returning, setReturning] = useState('Oct 25, 2026');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [depart, setDepart] = useState('');
+  const [returning, setReturning] = useState('');
   const [roundTrip, setRoundTrip] = useState(true);
   const [travellers, setTravellers] = useState('1 traveller · Economy');
   const swap = () => { setFrom(to); setTo(from); };
@@ -130,64 +134,85 @@ function SearchPanel({ onSearch }: { onSearch: (from: string, to: string, depart
           <span className="ml-auto hidden items-center gap-1 text-[#7c8c89] sm:flex"><ShieldCheck size={14} /> Flexible booking</span>
         </div>
         <div className="grid gap-2 lg:grid-cols-[1.45fr_1.45fr_1.15fr_1.15fr_1.12fr_auto]">
-          <SearchField icon={<Plane size={16} />} label="From" value={from} onChange={setFrom} placeholder="City or airport" testId="input-from">
+          <AirportField label="From" value={from} onChange={setFrom} placeholder="Origin city or airport" testId="input-from">
             <button onClick={swap} className="swap-button" aria-label="Swap airports" data-testid="button-swap"><ArrowLeftRight size={15} /></button>
-          </SearchField>
-          <SearchField icon={<Plane size={16} />} label="To" value={to} onChange={setTo} placeholder="City or airport" testId="input-to" />
-          <SearchField icon={<CalendarDays size={16} />} label="Depart" value={depart} onChange={setDepart} type="text" testId="input-depart" />
-          <SearchField icon={<CalendarDays size={16} />} label="Return" value={returning} onChange={setReturning} disabled={!roundTrip} testId="input-return" />
+          </AirportField>
+          <AirportField label="To" value={to} onChange={setTo} placeholder="Destination city or airport" testId="input-to" />
+          <SearchField icon={<CalendarDays size={16} />} label="Depart" value={depart} onChange={setDepart} type="date" testId="input-depart" />
+          <SearchField icon={<CalendarDays size={16} />} label="Return" value={returning} onChange={setReturning} disabled={!roundTrip} type="date" testId="input-return" />
           <label className="search-field">
             <span className="field-label"><Luggage size={15} /> Travellers</span>
             <select value={travellers} onChange={(e) => setTravellers(e.target.value)} data-testid="select-travellers" className="field-control cursor-pointer appearance-none bg-transparent pr-5">
               <option>1 traveller · Economy</option><option>2 travellers · Economy</option><option>1 traveller · Premium</option>
             </select><ChevronDown size={15} className="pointer-events-none absolute right-3 bottom-4 text-[#83908d]" />
           </label>
-          <button onClick={() => onSearch(from, to, depart, returning)} className="search-submit" data-testid="button-search"><Search size={18} /><span className="lg:hidden">Find flights</span></button>
+          <button onClick={() => from && to && depart && onSearch(from, to, depart, returning)} className="search-submit" data-testid="button-search"><Search size={18} /><span className="lg:hidden">Find flights</span></button>
         </div>
       </div>
     </section>
   );
 }
 
-function SearchField({ icon, label, value, onChange, placeholder, disabled, testId, children }: { icon: ReactNode; label: string; value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean; testId: string; type?: string; children?: ReactNode }) {
+function SearchField({ icon, label, value, onChange, placeholder, disabled, testId, type, children }: { icon: ReactNode; label: string; value: string; onChange: (value: string) => void; placeholder?: string; disabled?: boolean; testId: string; type?: string; children?: ReactNode }) {
   return <label className={`search-field ${disabled ? 'opacity-45' : ''}`}>
     <span className="field-label">{icon} {label}</span>
-    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} className="field-control" data-testid={testId} />
+    <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} type={type} className="field-control" data-testid={testId} />
     {children}
   </label>;
 }
 
-const hotels = [
+type AirportSuggestion = { iata: string; name: string; city?: string; country?: string };
+function AirportField({ label, value, onChange, placeholder, testId, children }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; testId: string; children?: ReactNode }) {
+  const [results, setResults] = useState<AirportSuggestion[]>([]);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const term = value.trim();
+    if (term.length < 2 || /\([A-Z]{3}\)$/.test(term)) { setResults([]); return; }
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`${apiBaseUrl}/locations/autocomplete?keyword=${encodeURIComponent(term)}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Airport search is unavailable.');
+        setResults(data.locations || []); setError('');
+      } catch { setResults([]); setError('Start the backend to search airports.'); }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [value]);
+  return <label className="search-field airport-field"><span className="field-label"><Plane size={16} /> {label}</span><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="field-control" data-testid={testId} />{children}{results.length > 0 && <span className="airport-suggestions">{results.map((airport) => <button type="button" key={airport.iata} onClick={() => { onChange(`${airport.city || airport.name} (${airport.iata})`); setResults([]); }}><strong>{airport.iata}</strong><span>{airport.city || airport.name}{airport.country ? ` · ${airport.country}` : ''}</span></button>)}</span>}{error && value.trim().length > 1 && <small className="airport-error">{error}</small>}</label>;
+}
+
+type HotelOffer = { id: string; name: string; area: string; rating: string; reviews: string; price: number | string; tint: string };
+const fallbackHotels: HotelOffer[] = [
   { id: 'mumbai-house', name: 'The Bombay House', area: 'Colaba, Mumbai', rating: '4.8', reviews: '1,284', price: 118, tint: 'hotel-sand' },
   { id: 'sea-facing', name: 'Sea & Sky Retreat', area: 'Bandra West, Mumbai', rating: '4.6', reviews: '842', price: 96, tint: 'hotel-sea' },
   { id: 'garden-court', name: 'Garden Court Hotel', area: 'Fort, Mumbai', rating: '4.7', reviews: '619', price: 83, tint: 'hotel-coral' },
 ];
 
 function HotelSearchPanel({ onSearch }: { onSearch: (destination: string, checkIn: string, checkOut: string, guests: string) => void }) {
-  const [destination, setDestination] = useState('Mumbai');
-  const [checkIn, setCheckIn] = useState('Oct 18, 2026');
-  const [checkOut, setCheckOut] = useState('Oct 21, 2026');
+  const [destination, setDestination] = useState('');
+  const [checkIn, setCheckIn] = useState('');
+  const [checkOut, setCheckOut] = useState('');
   const [guests, setGuests] = useState('2 guests · 1 room');
   return <section className="relative z-10 mx-auto max-w-[1120px] px-5 lg:px-0">
     <div className="hotel-search-card search-card rounded-[22px] border border-[#e2dacc] bg-[#fffdf8] p-3 shadow-[0_18px_55px_rgba(37,62,65,.1)]">
       <div className="mb-2 flex items-center gap-1 px-2 pt-1 text-xs font-semibold text-[#6b7777]"><span className="search-card-note"><Building2 size={14} /> Find a stay that fits the trip</span><span className="ml-auto hidden items-center gap-1 text-[#7c8c89] sm:flex"><ShieldCheck size={14} /> Flexible booking</span></div>
       <div className="grid gap-2 lg:grid-cols-[1.55fr_1.15fr_1.15fr_1.15fr_auto]">
         <SearchField icon={<MapPin size={16} />} label="Destination" value={destination} onChange={setDestination} placeholder="City or neighbourhood" testId="input-hotel-destination" />
-        <SearchField icon={<CalendarDays size={16} />} label="Check in" value={checkIn} onChange={setCheckIn} testId="input-hotel-check-in" />
-        <SearchField icon={<CalendarDays size={16} />} label="Check out" value={checkOut} onChange={setCheckOut} testId="input-hotel-check-out" />
+        <SearchField icon={<CalendarDays size={16} />} label="Check in" value={checkIn} onChange={setCheckIn} type="date" testId="input-hotel-check-in" />
+        <SearchField icon={<CalendarDays size={16} />} label="Check out" value={checkOut} onChange={setCheckOut} type="date" testId="input-hotel-check-out" />
         <label className="search-field">
           <span className="field-label"><UsersRound size={15} /> Guests</span>
           <select value={guests} onChange={(e) => setGuests(e.target.value)} data-testid="select-hotel-guests" className="field-control cursor-pointer appearance-none bg-transparent pr-5">
             <option>2 guests · 1 room</option><option>1 guest · 1 room</option><option>4 guests · 2 rooms</option>
           </select><ChevronDown size={15} className="pointer-events-none absolute right-3 bottom-4 text-[#83908d]" />
         </label>
-        <button onClick={() => onSearch(destination, checkIn, checkOut, guests)} className="search-submit" data-testid="button-search-hotels"><Search size={18} /><span className="lg:hidden">Find stays</span></button>
+        <button onClick={() => destination && checkIn && checkOut && onSearch(destination, checkIn, checkOut, guests)} className="search-submit" data-testid="button-search-hotels"><Search size={18} /><span className="lg:hidden">Find stays</span></button>
       </div>
     </div>
   </section>;
 }
 
-function HotelResults({ search }: { search: { destination: string; checkIn: string; checkOut: string; guests: string } }) {
+function HotelResults({ search, hotels }: { search: { destination: string; checkIn: string; checkOut: string; guests: string }; hotels: HotelOffer[] }) {
   const [added, setAdded] = useState<string | null>(null);
   return <section className="hotel-results rise-in">
     <div className="hotel-results-heading"><div><p className="section-kicker">A few good places</p><h2>{search.destination} <em>stays.</em></h2><p>{search.checkIn} – {search.checkOut} · {search.guests}</p></div><span className="hotel-results-count">{hotels.length} stays</span></div>
@@ -226,7 +251,7 @@ function HomeView() {
     <TravelLoopDivider />
     <section className="mx-auto max-w-[1120px] px-5 pb-20 pt-24 lg:px-0">
       <div className="grid items-start gap-8 lg:grid-cols-[.8fr_1.2fr]">
-        <div><p className="section-kicker">A little more human</p><h2 className="section-title">Good trips start<br /><em>before takeoff.</em></h2></div>
+        <div><h2 className="section-title">Good trips start<br /><em>before takeoff.</em></h2></div>
         <div className="grid gap-3 sm:grid-cols-3">
           <Feature icon={<Compass />} title="See the whole picture" copy="Clear fares, real timings, no clutter." />
           <Feature icon={<Heart />} title="Keep the maybes" copy="Save a few options and come back when ready." />
@@ -241,10 +266,32 @@ function AddTripView({ onSearch }: { onSearch: (from: string, to: string, depart
   const [mode, setMode] = useState<'flight' | 'hotel'>('flight');
   const [hotelSearching, setHotelSearching] = useState(false);
   const [hotelSearch, setHotelSearch] = useState<{ destination: string; checkIn: string; checkOut: string; guests: string } | null>(null);
-  const searchHotels = (destination: string, checkIn: string, checkOut: string, guests: string) => {
+  const [hotelResults, setHotelResults] = useState<HotelOffer[]>([]);
+  const [hotelError, setHotelError] = useState('');
+  const searchHotels = async (destination: string, checkIn: string, checkOut: string, guests: string) => {
     setHotelSearch({ destination, checkIn, checkOut, guests });
     setHotelSearching(true);
-    window.setTimeout(() => setHotelSearching(false), 500);
+    setHotelError('');
+    try {
+      const adults = Number(guests.match(/^\d+/)?.[0] || 1);
+      const response = await fetch(`${apiBaseUrl}/hotels/search?city=${encodeURIComponent(destination)}&checkIn=${checkIn}&checkOut=${checkOut}&adults=${adults}`);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Hotel search failed');
+      setHotelResults((data.hotels || []).map((hotel: { id?: string; name?: string; locality?: string; neighborhood?: string; starRating?: number; price?: string | number }, index: number) => ({
+        id: hotel.id || `${hotel.name}-${index}`,
+        name: hotel.name || 'Hotel',
+        area: hotel.neighborhood || hotel.locality || destination,
+        rating: hotel.starRating ? String(hotel.starRating) : '—',
+        reviews: 'Live availability',
+        price: hotel.price || '—',
+        tint: ['hotel-sand', 'hotel-sea', 'hotel-coral'][index % 3] || 'hotel-sand',
+      })));
+    } catch {
+      setHotelResults([]);
+      setHotelError('Live hotel search needs the backend running at the VITE_API_BASE_URL address and an active Hotels4 RapidAPI subscription.');
+    } finally {
+      setHotelSearching(false);
+    }
   };
   return <main className="add-trip-page min-h-[calc(100dvh-74px)]">
     <div className="mx-auto max-w-[1120px] px-5 py-14 lg:px-0 lg:py-20">
@@ -259,7 +306,8 @@ function AddTripView({ onSearch }: { onSearch: (from: string, to: string, depart
       </div>
       {mode === 'flight' ? <SearchPanel onSearch={onSearch} /> : <HotelSearchPanel onSearch={searchHotels} />}
       {mode === 'hotel' && hotelSearching && <div className="hotel-loading"><div className="skeleton h-5 w-44 rounded-full" /><div className="skeleton h-3 w-64 rounded-full" /></div>}
-      {mode === 'hotel' && !hotelSearching && hotelSearch && <HotelResults search={hotelSearch} />}
+      {mode === 'hotel' && !hotelSearching && hotelError && <p className="tracking-message">{hotelError}</p>}
+      {mode === 'hotel' && !hotelSearching && hotelSearch && !hotelError && <HotelResults search={hotelSearch} hotels={hotelResults} />}
     </div>
   </main>;
 }
@@ -280,12 +328,75 @@ function BoardingPassView() {
         <Upload size={17} /> Upload boarding pass
         <span>PDF, PNG or JPG</span>
       </label>
-      {uploadedFile && <div className="upload-success rise-in"><div className="upload-success-icon"><FileUp size={16} /></div><div><strong>{uploadedFile}</strong><span>Added to your trip · ready to view offline</span></div><Check size={17} /></div>}
-      <article className="boarding-card rise-in">
-        <div className="boarding-top"><div><span className="ticket-label">Aurora Air · AA 204</span><h2>San Francisco <ArrowRight size={22} /> New York</h2><span className="ticket-subtitle">Sunday, October 18, 2026 · Main Cabin</span></div><div className="ticket-status"><BadgeCheck size={15} /> Confirmed</div></div>
-        <div className="boarding-route"><div><span>Departure</span><strong>7:40 AM</strong><small>SFO · Terminal 2</small></div><div className="ticket-line"><Plane size={18} /><span /></div><div className="text-right"><span>Arrival</span><strong>4:12 PM</strong><small>JFK · Terminal 5</small></div></div>
-        <div className="boarding-bottom"><div className="barcode" aria-label="Boarding pass barcode">{Array.from({ length: 28 }, (_, i) => <i key={i} style={{ width: `${i % 4 === 0 ? 3 : 1}px` }} />)}</div><div className="ticket-meta"><span>Seat <strong>14A</strong></span><span>Group <strong>2</strong></span><span>Gate <strong>B18</strong></span></div></div>
-      </article>
+      {uploadedFile ? <div className="upload-success rise-in"><div className="upload-success-icon"><FileUp size={16} /></div><div><strong>{uploadedFile}</strong><span>Added to this device · a card will appear only when real flight details are available.</span></div><Check size={17} /></div> : <p className="secondary-copy mt-10">Upload a boarding pass to create its travel card here.</p>}
+    </div>
+  </main>;
+}
+
+type TrackedFlight = {
+  flightNumber: string | null;
+  airline: string;
+  status: string;
+  departure: { airport: string | null; scheduled: string | null; estimated: string | null; actual: string | null; terminal: string | null; gate: string | null };
+  arrival: { airport: string | null; scheduled: string | null; estimated: string | null; actual: string | null; terminal: string | null; gate: string | null };
+  aircraft: string | null;
+  position: { latitude: number; longitude: number; altitude: number | null; speed: number | null; heading: number | null; updatedAt: string | null } | null;
+};
+
+const displayTime = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' }).format(new Date(value)) : '—';
+
+function FlightTrackingView() {
+  const [flightNumber, setFlightNumber] = useState('');
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [flight, setFlight] = useState<TrackedFlight | null>(null);
+  const [message, setMessage] = useState('Enter a flight number to see its current status.');
+  const [loading, setLoading] = useState(false);
+
+  const trackFlight = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!flightNumber.trim()) return;
+    setLoading(true);
+    setMessage('Checking the latest flight update…');
+    setFlight(null);
+    try {
+      const response = await fetch(`${apiBaseUrl}/flights/track?flightNumber=${encodeURIComponent(flightNumber)}&date=${date}`);
+      const body = await response.text();
+      let data: { flights?: TrackedFlight[]; note?: string; error?: string; detail?: string };
+      try {
+        data = JSON.parse(body) as { flights?: TrackedFlight[]; note?: string; error?: string };
+      } catch {
+        throw new Error('The tracking server returned a web page instead of JSON. Start the backend on port 4000 and set VITE_API_BASE_URL to its /api URL.');
+      }
+      if (!response.ok) throw new Error(data.detail || data.error || 'Unable to track this flight.');
+      if (!data.flights?.length) {
+        setMessage(`No flight was found for ${flightNumber.toUpperCase()} on ${date}. Check the number and departure date.`);
+      } else {
+        setFlight(data.flights[0]);
+        setMessage(data.note || 'Latest update received.');
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to connect to live tracking.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return <main className="secondary-page tracking-page min-h-[calc(100dvh-74px)]">
+    <div className="mx-auto max-w-[880px] px-5 py-14 lg:px-0 lg:py-20">
+      <div className="eyebrow mb-4"><span className="eyebrow-dot" /> Follow the journey</div>
+      <h1 className="results-title">Live flight <em>tracking.</em></h1>
+      <p className="secondary-copy">Enter a flight number and its departure date for current status, timings, gate details, and position when live coverage is available.</p>
+      <form className="tracking-search rise-in" onSubmit={trackFlight}>
+        <label><span>Flight number</span><input value={flightNumber} onChange={(event) => setFlightNumber(event.target.value.toUpperCase())} placeholder="e.g. BA117" maxLength={8} required data-testid="input-track-flight-number" /></label>
+        <label><span>Departure date</span><input type="date" value={date} onChange={(event) => setDate(event.target.value)} required data-testid="input-track-date" /></label>
+        <button className="primary-button" disabled={loading} data-testid="button-track-flight"><Plane size={16} /> {loading ? 'Tracking…' : 'Track flight'}</button>
+      </form>
+      <p className="tracking-message" role="status">{message}</p>
+      {flight && <article className="tracking-card rise-in" data-testid="live-flight-result">
+        <div className="tracking-card-head"><div><span className="section-kicker">{flight.airline}</span><h2>{flight.flightNumber || flightNumber.toUpperCase()}</h2></div><span className="tracking-status">{flight.status}</span></div>
+        <div className="tracking-route"><div><span>Departure</span><strong>{flight.departure.airport || '—'}</strong><small>{displayTime(flight.departure.actual || flight.departure.estimated || flight.departure.scheduled)}</small><em>{flight.departure.gate ? `Gate ${flight.departure.gate}` : flight.departure.terminal ? `Terminal ${flight.departure.terminal}` : 'Gate pending'}</em></div><div className="tracking-line"><Plane size={19} /><span /></div><div className="text-right"><span>Arrival</span><strong>{flight.arrival.airport || '—'}</strong><small>{displayTime(flight.arrival.actual || flight.arrival.estimated || flight.arrival.scheduled)}</small><em>{flight.arrival.gate ? `Gate ${flight.arrival.gate}` : flight.arrival.terminal ? `Terminal ${flight.arrival.terminal}` : 'Gate pending'}</em></div></div>
+        <div className="tracking-details"><span>Aircraft <strong>{flight.aircraft || 'Not available'}</strong></span>{flight.position ? <span>Live position <strong>{flight.position.latitude.toFixed(3)}, {flight.position.longitude.toFixed(3)}</strong></span> : <span>Live position <strong>Unavailable for this flight</strong></span>}</div>
+      </article>}
     </div>
   </main>;
 }
@@ -297,13 +408,19 @@ function HelpView() {
     'Yes. Open Add trip whenever you want to create a fresh route and keep your existing plans untouched.',
     'It means your fare includes more flexibility if your plans shift. Look for the shield on eligible options.',
   ];
-  const [openIndex, setOpenIndex] = useState(0);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   return <main className="secondary-page min-h-[calc(100dvh-74px)]">
     <div className="mx-auto max-w-[880px] px-5 py-14 lg:px-0 lg:py-20">
       <div className="eyebrow mb-4"><span className="eyebrow-dot" /> A little help, right this way</div>
       <h1 className="results-title">Travel planning, <em>without the guesswork.</em></h1>
       <p className="secondary-copy">A few quick answers for the moments when you want to keep moving.</p>
-      <div className="help-list motion-help-list rise-in">{questions.map((question, index) => <div key={question} className={`help-item ${openIndex === index ? 'is-open' : ''}`}><button onClick={() => setOpenIndex(openIndex === index ? -1 : index)} className="help-question" aria-expanded={openIndex === index} data-testid={`help-question-${index}`}><span>{question}</span><ChevronDown size={16} /></button><div className="help-answer"><p>{answers[index]}</p></div></div>)}</div>
+      <div className="help-list motion-help-list rise-in">{questions.map((question, index) => {
+        const open = openIndex === index;
+        return <motion.div layout key={question} className="help-item" animate={{ scale: open ? 1 : .985 }} transition={{ type: 'spring', stiffness: 280, damping: 28, mass: .9 }}>
+          <button onClick={() => setOpenIndex(open ? null : index)} className="help-question" aria-expanded={open} aria-controls={`help-panel-${index}`} data-testid={`help-question-${index}`}><span>{question}</span><motion.span animate={{ rotate: open ? 180 : 0, scale: open ? 1.05 : 1 }} transition={{ type: 'spring', stiffness: 480, damping: 28 }}><ChevronDown size={16} /></motion.span></button>
+          <motion.div id={`help-panel-${index}`} role="region" initial={false} animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }} transition={{ height: { type: 'spring', stiffness: 340, damping: 34, mass: .9 }, opacity: { duration: .2 } }} style={{ overflow: 'hidden' }}><motion.p animate={{ y: open ? 0 : -8 }} transition={{ type: 'spring', stiffness: 360, damping: 30 }} className="help-motion-answer">{answers[index]}</motion.p></motion.div>
+        </motion.div>;
+      })}</div>
       <button className="primary-button mt-6" onClick={() => window.location.href = 'mailto:hello@aeropath.app'} data-testid="button-contact-help"><CircleHelp size={16} /> Contact the AeroPath team</button>
     </div>
   </main>;
@@ -760,7 +877,8 @@ function TravelLoopDivider() {
 
   return (
     <section className="travel-loop-divider" aria-label="Take the scenic route with AeroPath">
-        <svg className="wavy-ribbon" viewBox="0 -36 1440 252" preserveAspectRatio="xMidYMid slice" role="img" aria-label="AeroPath scenic route ribbon">        <defs>
+      <svg className="wavy-ribbon" viewBox="0 -36 1440 252" preserveAspectRatio="none" role="img" aria-label="AeroPath scenic route ribbon">
+        <defs>
           <path
             id="aeropath-ribbon-path"
             d="M-120 92 C0 172 120 172 240 92 S480 12 600 92 S840 172 960 92 S1200 12 1320 92 S1560 172 1680 92"
@@ -779,7 +897,7 @@ function TravelLoopDivider() {
             {ribbonText.repeat(10)}
           </textPath>
         </text>
-      </svg>
+        </svg>
     </section>
   );
 }
@@ -802,13 +920,14 @@ function ResultsView({ search, saved, onToggleSave, onBack, onSelect }: { search
   const [sort, setSort] = useState('Recommended');
   const [stops, setStops] = useState('Any stops');
   const [maxPrice, setMaxPrice] = useState(600);
-  const list = useMemo(() => flights.filter((f) => (stops === 'Nonstop' ? f.stops === 'Nonstop' : true) && f.price <= maxPrice).sort((a, b) => sort === 'Price' ? a.price - b.price : sort === 'Duration' ? a.duration.localeCompare(b.duration) : (a.id === 'aurora-1' ? -1 : b.id === 'aurora-1' ? 1 : 0)), [sort, stops, maxPrice]);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const list = useMemo(() => flights.filter((f) => (stops === 'Nonstop' ? f.stops === 'Nonstop' : true) && f.price <= maxPrice && (!favoritesOnly || saved.has(f.id))).sort((a, b) => sort === 'Price' ? a.price - b.price : sort === 'Duration' ? a.duration.localeCompare(b.duration) : (a.id === 'aurora-1' ? -1 : b.id === 'aurora-1' ? 1 : 0)), [sort, stops, maxPrice, favoritesOnly, saved]);
   return <main className="results-page min-h-[calc(100dvh-74px)]">
     <div className="mx-auto max-w-[1120px] px-5 py-7 lg:px-0 lg:py-10">
       <button onClick={onBack} className="back-link" data-testid="button-back-search"><ChevronLeft size={17} /> Edit search</button>
       <div className="mb-8 mt-5 flex flex-wrap items-end justify-between gap-5">
         <div className="rise-in"><div className="eyebrow mb-3"><span className="eyebrow-dot" /> Your next chapter</div><h1 className="results-title">{search.from.split(' (')[0]} <ArrowRight className="inline-block text-[#d58c78]" size={28} /> {search.to.split(' (')[0]}</h1><p className="mt-2 text-sm text-[#6b7777]">{search.depart} · {search.returning} · <span className="font-semibold text-[#36545a]">48 flights</span></p></div>
-        <div className="flex items-center gap-2"><label className="filter-select"><span>Sort by</span><select value={sort} onChange={(e) => setSort(e.target.value)} data-testid="select-sort"><option>Recommended</option><option>Price</option><option>Duration</option></select><ChevronDown size={14} /></label><button className="filter-button lg:hidden" data-testid="button-mobile-filters"><SlidersHorizontal size={16} /> Filters</button></div>
+        <div className="flex items-center gap-2"><button onClick={() => setFavoritesOnly((current) => !current)} className={`filter-button ${favoritesOnly ? 'active' : ''}`} data-testid="button-filter-favorites"><Heart size={15} fill={favoritesOnly ? 'currentColor' : 'none'} /> {favoritesOnly ? 'Favourites' : 'All flights'}</button><label className="filter-select"><span>Sort by</span><select value={sort} onChange={(e) => setSort(e.target.value)} data-testid="select-sort"><option>Recommended</option><option>Price</option><option>Duration</option></select><ChevronDown size={14} /></label><button className="filter-button lg:hidden" data-testid="button-mobile-filters"><SlidersHorizontal size={16} /> Filters</button></div>
       </div>
       <div className="grid items-start gap-8 lg:grid-cols-[230px_1fr]">
         <aside className="filter-panel hidden lg:block">
@@ -842,9 +961,18 @@ function SavedView({ saved, onToggleSave, onSearch, onSelect }: { saved: Set<str
 
 function AccountModal({ onClose }: { onClose: () => void }) {
   const [mode, setMode] = useState<'signin' | 'create'>('signin');
-  const [submitted, setSubmitted] = useState(false);
-  const [loggedOut, setLoggedOut] = useState(false);
-  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Account"><div className="account-modal rise-in"><button onClick={onClose} className="modal-close" aria-label="Close account modal" data-testid="button-close-account"><X size={18} /></button><div className="modal-art"><div className="grid size-12 place-items-center rounded-2xl bg-[#e7b95d] text-[#18323c]"><Plane size={23} className="-rotate-12" /></div><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#8e7350]">AeroPath profile</p><p className="mt-1 font-serif text-[25px] leading-none text-[#21434b]">Keep the good options close.</p></div></div>{loggedOut ? <div className="modal-success"><div className="success-icon"><LogOut size={22} /></div><h2>You are logged out.</h2><p>Your saved details are safely tucked away.</p><button onClick={onClose} className="primary-button" data-testid="button-finish-logout">Done</button></div> : submitted ? <div className="modal-success"><div className="success-icon"><Check size={24} /></div><h2>{mode === 'signin' ? 'Welcome back.' : 'You are on your way.'}</h2><p>{mode === 'signin' ? 'Your saved trips are waiting for you.' : 'Your new AeroPath account is ready.'}</p><button onClick={onClose} className="primary-button" data-testid="button-finish-account">Continue</button></div> : <><div className="modal-tabs"><button onClick={() => setMode('signin')} className={mode === 'signin' ? 'active' : ''} data-testid="tab-signin">Sign in</button><button onClick={() => setMode('create')} className={mode === 'create' ? 'active' : ''} data-testid="tab-create">Create account</button></div><form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="grid gap-4"><label className="modal-field"><span>Email address</span><input type="email" placeholder="you@example.com" required data-testid="input-account-email" /></label><label className="modal-field"><span>Password</span><input type="password" placeholder="At least 8 characters" required minLength={8} data-testid="input-account-password" /></label><button className="primary-button w-full justify-center" type="submit" data-testid="button-submit-account">{mode === 'signin' ? 'Sign in' : 'Create account'} <ArrowRight size={16} /></button><div className="relative my-1 text-center text-xs text-[#91a09b]"><span className="relative z-10 bg-[#fffdf8] px-3">or continue with</span><span className="absolute left-0 right-0 top-1/2 border-t border-[#e7dfd2]" /></div><button type="button" className="social-button" onClick={() => setSubmitted(true)} data-testid="button-continue-google"><span className="google-mark">G</span> Continue with Google</button></form><p className="mt-5 text-center text-xs leading-5 text-[#89938f]">By continuing, you agree to AeroPath's <button className="underline">terms</button> and <button className="underline">privacy policy</button>.</p><button className="logout-button" onClick={() => setLoggedOut(true)} data-testid="button-logout"><LogOut size={15} /> Log out</button></>}</div></div>;
+  const [notice, setNotice] = useState('');
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const password = String(new FormData(event.currentTarget).get('password') || '');
+    if (mode === 'create' && (!/^.{7,}$/.test(password) || (password.match(/\d/g) || []).length < 2 || !/[^A-Za-z0-9]/.test(password))) {
+      setNotice('Password needs 7+ characters, at least two numbers, and one special character.');
+      return;
+    }
+    setNotice('Firebase sign-in will be enabled after Firebase Web configuration is added. No account has been created yet.');
+  };
+  const staticPage = (name: 'terms' | 'privacy') => `${import.meta.env.BASE_URL}${name}.html`;
+  return <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Account"><div className="account-modal rise-in"><button onClick={onClose} className="modal-close" aria-label="Close account modal"><X size={18} /></button><div className="modal-art"><div className="grid size-12 place-items-center rounded-2xl bg-[#e7b95d] text-[#18323c]"><Plane size={23} className="-rotate-12" /></div><div><p className="text-xs font-bold uppercase tracking-[.16em] text-[#8e7350]">AeroPath account</p><p className="mt-1 font-serif text-[25px] leading-none text-[#21434b]">Keep the good options close.</p></div></div><div className="modal-tabs"><button onClick={() => { setMode('signin'); setNotice(''); }} className={mode === 'signin' ? 'active' : ''}>Sign in</button><button onClick={() => { setMode('create'); setNotice(''); }} className={mode === 'create' ? 'active' : ''}>Create account</button></div><form onSubmit={submit} className="grid gap-4">{mode === 'create' && <label className="modal-field"><span>Username</span><input name="username" type="text" placeholder="Choose a username" minLength={3} maxLength={30} required /></label>}<label className="modal-field"><span>Email address</span><input name="email" type="email" placeholder="you@example.com" required /></label><label className="modal-field"><span>Password</span><input name="password" type="password" placeholder="7+ characters, 1 symbol, 2 numbers" required minLength={7} /></label><button className="primary-button w-full justify-center" type="submit">{mode === 'signin' ? 'Sign in' : 'Create account'} <ArrowRight size={16} /></button></form>{notice && <p className="mt-4 text-center text-xs leading-5 text-[#bb715e]">{notice}</p>}<p className="mt-5 text-center text-xs leading-5 text-[#89938f]">By continuing, you agree to AeroPath's <a className="underline" href={staticPage('terms')} target="_blank" rel="noreferrer">terms</a> and <a className="underline" href={staticPage('privacy')} target="_blank" rel="noreferrer">privacy policy</a>.</p></div></div>;
 }
 
 function SelectedToast({ flight, onClose }: { flight: Flight; onClose: () => void }) {
@@ -861,22 +989,21 @@ function AssistantWidget() {
     { id: 1, role: 'assistant', text: 'Hi, I’m AeroGuide. Want help finding a flight that feels right?' },
   ]);
   const suggestions = ['Find the calmest flight', 'What does flexible booking mean?'];
-  const replyFor = (question: string) => {
-    const prompt = question.toLowerCase();
-    if (prompt.includes('calm') || prompt.includes('flight')) return 'Aurora Air is a good place to start: it’s nonstop, has a comfortable morning departure, and is marked Best overall.';
-    if (prompt.includes('flexible')) return 'Flexible booking means the fare gives you more room to change plans. Look for the shield on eligible options.';
-    return 'I can help compare flights, explain fare details, or keep your trip planning simple. Try asking about a route or flexible booking.';
-  };
-  const ask = (question: string) => {
+  const ask = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || typing) return;
     setDraft('');
     setMessages((current) => [...current, { id: Date.now(), role: 'user', text: trimmed }]);
     setTyping(true);
-    window.setTimeout(() => {
-      setMessages((current) => [...current, { id: Date.now() + 1, role: 'assistant', text: replyFor(trimmed) }]);
+    try {
+      const response = await fetch(`${apiBaseUrl}/assistant/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: trimmed }) });
+      const data = await response.json() as { answer?: string; error?: string };
+      setMessages((current) => [...current, { id: Date.now() + 1, role: 'assistant', text: data.answer || data.error || 'I could not answer that just now.' }]);
+    } catch {
+      setMessages((current) => [...current, { id: Date.now() + 1, role: 'assistant', text: 'AeroGuide cannot reach the server right now. Please try again shortly.' }]);
+    } finally {
       setTyping(false);
-    }, 550);
+    }
   };
   return <div className={`assistant-widget ${open ? 'is-open' : ''}`}>
     {open && <section className="assistant-panel rise-in" role="dialog" aria-label="AeroGuide assistant">
@@ -890,7 +1017,7 @@ function AssistantWidget() {
 }
 
 function Home() {
-  const [view, setView] = useState<'home' | 'add' | 'results' | 'saved' | 'boarding' | 'help' | 'map'>('home');
+  const [view, setView] = useState<'home' | 'add' | 'results' | 'saved' | 'boarding' | 'tracking' | 'help' | 'map'>('home');
   const [searching, setSearching] = useState(false);
   const [search, setSearch] = useState({ from: 'San Francisco (SFO)', to: 'New York (JFK)', depart: 'Oct 18, 2026', returning: 'Oct 25, 2026' });
   const [saved, setSaved] = useState<Set<string>>(savedSeed);
@@ -919,13 +1046,13 @@ function Home() {
     setNavigationTarget(next);
     setTransitioning(true);
     window.setTimeout(() => {
-       if (next === 'add') setView('add'); else if (next === 'results') setView('results'); else if (next === 'saved') setView('saved'); else if (next === 'boarding') setView('boarding'); else if (next === 'help') setView('help'); else if (next === 'map') setView('map'); else setView('home');
+       if (next === 'add') setView('add'); else if (next === 'results') setView('results'); else if (next === 'saved') setView('saved'); else if (next === 'boarding') setView('boarding'); else if (next === 'tracking') setView('tracking'); else if (next === 'help') setView('help'); else if (next === 'map') setView('map'); else setView('home');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       setTransitioning(false);
       setNavigationTarget(null);
     }, 1100);
   };
-  return <div className={`noise min-h-[100dvh] ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>{booting ? <LoadingScreen /> : <><NavBar view={view} onNavigate={navigate} onAccount={() => setAccountOpen(true)} theme={theme} onThemeToggle={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} navigationPulse={transitioning} navigationTarget={navigationTarget} />{searching ? <LoadingResults /> : view === 'home' ? <HomeView /> : view === 'add' ? <AddTripView onSearch={doSearch} /> : view === 'results' ? <ResultsView search={search} saved={saved} onToggleSave={toggleSave} onBack={() => navigate('add')} onSelect={setSelected} /> : view === 'boarding' ? <BoardingPassView /> : view === 'help' ? <HelpView /> : view === 'map' ? <TravelMapView /> : <SavedView saved={saved} onToggleSave={toggleSave} onSearch={() => navigate('add')} onSelect={setSelected} />}{selected && <SelectedToast flight={selected} onClose={() => setSelected(null)} />}{accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}<AssistantWidget /></>}</div>;
+  return <div className={`noise min-h-[100dvh] ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>{booting ? <LoadingScreen /> : <><NavBar view={view} onNavigate={navigate} onAccount={() => setAccountOpen(true)} theme={theme} onThemeToggle={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} navigationPulse={transitioning} navigationTarget={navigationTarget} />{searching ? <LoadingResults /> : view === 'home' ? <HomeView /> : view === 'add' ? <AddTripView onSearch={doSearch} /> : view === 'results' ? <ResultsView search={search} saved={saved} onToggleSave={toggleSave} onBack={() => navigate('add')} onSelect={setSelected} /> : view === 'boarding' ? <BoardingPassView /> : view === 'tracking' ? <FlightTrackingView /> : view === 'help' ? <HelpView /> : view === 'map' ? <TravelMapView /> : <SavedView saved={saved} onToggleSave={toggleSave} onSearch={() => navigate('add')} onSelect={setSelected} />}{selected && <SelectedToast flight={selected} onClose={() => setSelected(null)} />}{accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}<AssistantWidget /></>}</div>;
 }
 
 function Router() {
