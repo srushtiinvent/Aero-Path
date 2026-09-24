@@ -93,8 +93,8 @@ function NavBar({ view, onNavigate, onAccount, theme, onThemeToggle, navigationP
             <button data-nav-id="add" onClick={() => onNavigate('add')} className={`nav-link ${view === 'add' || view === 'results' ? 'active' : ''}`} data-testid="nav-add-trip"><Plus size={14} /> Add trip</button>
             <button data-nav-id="boarding" onClick={() => onNavigate('boarding')} className={`nav-link ${view === 'boarding' ? 'active' : ''}`} data-testid="nav-boarding-pass"><CreditCard size={14} /> Boarding pass</button>
             <button data-nav-id="tracking" onClick={() => onNavigate('tracking')} className={`nav-link ${view === 'tracking' ? 'active' : ''}`} data-testid="nav-live-tracking"><Plane size={14} /> Live tracking</button>
-            <button data-nav-id="help" onClick={() => onNavigate('help')} className={`nav-link ${view === 'help' ? 'active' : ''}`} data-testid="nav-help"><CircleHelp size={14} /> Help</button>
             <button data-nav-id="map" onClick={() => onNavigate('map')} className={`nav-link ${view === 'map' ? 'active' : ''}`} data-testid="nav-travel-map"><Globe2 size={14} /> Travel map</button>
+            <button data-nav-id="help" onClick={() => onNavigate('help')} className={`nav-link ${view === 'help' ? 'active' : ''}`} data-testid="nav-help"><CircleHelp size={14} /> Help</button>
           </nav>
           <AnimatedThemeToggler theme={theme} onToggle={onThemeToggle} />
           <button onClick={onAccount} className="profile-button" data-testid="button-profile"><UserRound size={16} /> Profile</button>
@@ -107,8 +107,8 @@ function NavBar({ view, onNavigate, onAccount, theme, onThemeToggle, navigationP
           <button onClick={() => { onNavigate('add'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-add-trip"><Plus size={15} /> Add trip</button>
           <button onClick={() => { onNavigate('boarding'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-boarding-pass"><CreditCard size={15} /> Boarding pass</button>
           <button onClick={() => { onNavigate('tracking'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-live-tracking"><Plane size={15} /> Live tracking</button>
-          <button onClick={() => { onNavigate('help'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-help"><CircleHelp size={15} /> Help</button>
           <button onClick={() => { onNavigate('map'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-travel-map"><Globe2 size={15} /> Travel map</button>
+          <button onClick={() => { onNavigate('help'); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-help"><CircleHelp size={15} /> Help</button>
           <button onClick={() => { onAccount(); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-profile"><UserRound size={15} /> Profile</button>
           <button onClick={() => { onThemeToggle(); setMenuOpen(false); }} className="mobile-nav-item" data-testid="mobile-nav-theme">{theme === 'light' ? <Moon size={15} /> : <SunMedium size={15} />} {theme === 'light' ? 'Dark theme' : 'Light theme'}</button>
         </div>
@@ -689,7 +689,8 @@ function TravelMapView() {
             <div className="world-map-visual">
               <svg
                 className="world-map-svg"
-                viewBox="0 0 1000 500"
+                viewBox="24 12 952 476"
+                preserveAspectRatio="none"
                 role="img"
                 aria-label="Accurate world map with pinned travel cities"
               >
