@@ -674,3 +674,13 @@
 .theme-dark .account-modal { border-color: #34545a; background: #183941; }
 .theme-dark .modal-art p, .theme-dark .modal-tabs button.active { color: #f5f1e8; }
 .theme-dark .modal-tabs { border-color: #34545a; }
+
+/* Align map paths and location markers to the same full equirectangular viewBox. */
+.world-map-svg { inset: 0; width: 100%; height: 100%; }
+.map-pin { transform: translate(-50%, -50%); }
+.static-error { position: static; display: block; margin: 10px 8px 2px; white-space: normal; font-size: 11px; }
+.boarding-upload-preview { max-width: 720px; margin-top: 12px; overflow: hidden; border: 1px solid #e1dace; border-radius: 16px; background: #fffdf8; }
+.boarding-upload-preview iframe, .boarding-upload-preview img { display: block; width: 100%; height: min(70vh, 720px); object-fit: contain; background: #f5f2eb; }
+.boarding-upload-preview a { display: inline-flex; margin: 10px 14px; color: #397b7b; font-size: 12px; font-weight: 700; }
+.theme-dark .boarding-upload-preview { border-color: #34545a; background: #183941; }
+@media (max-width: 767px) { .boarding-upload-preview iframe, .boarding-upload-preview img { height: 60vh; } }

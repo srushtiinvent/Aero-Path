@@ -21,7 +21,7 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/
 type Flight = {
   id: string; airline: string; code: string; from: string; to: string;
   depart: string; arrive: string; duration: string; stops: string;
-  stopNote: string; price: number; cabin: string; tint: string; badge?: string;
+  stopNote: string; price: number | null; cabin: string; tint: string; badge?: string;
 };
 
 const flights: Flight[] = [
@@ -124,7 +124,16 @@ function SearchPanel({ onSearch }: { onSearch: (from: string, to: string, depart
   const [returning, setReturning] = useState('');
   const [roundTrip, setRoundTrip] = useState(true);
   const [travellers, setTravellers] = useState('1 traveller · Economy');
-  const swap = () => { setFrom(to); setTo(from); };
+  const [formError, setFormError] = useState('');
+  const submitSearch = () => {
+    const airportCode = (value: string) => value.match(/\(([A-Z]{3})\)$/)?.[1] || (/^[A-Z]{3}$/.test(value.trim()) ? value.trim() : '');
+    if (!airportCode(from) || !airportCode(to)) { setFormError('Choose both airports from the suggestions so we can search the correct route.'); return; }
+    if (!depart) { setFormError('Choose a departure date to search.'); return; }
+    if (roundTrip && returning && returning < depart) { setFormError('Return date must be on or after the departure date.'); return; }
+    setFormError('');
+    onSearch(from, to, depart, roundTrip ? returning : '');
+  };
+  const swap = () => { setFrom(to); setTo(from); setFormError(''); };
   return (
     <section className="relative z-10 mx-auto -mt-1 max-w-[1120px] px-5 lg:px-0">
       <div className="search-card rounded-[22px] border border-[#e2dacc] bg-[#fffdf8] p-3 shadow-[0_18px_55px_rgba(37,62,65,.1)]">
@@ -146,8 +155,9 @@ function SearchPanel({ onSearch }: { onSearch: (from: string, to: string, depart
               <option>1 traveller · Economy</option><option>2 travellers · Economy</option><option>1 traveller · Premium</option>
             </select><ChevronDown size={15} className="pointer-events-none absolute right-3 bottom-4 text-[#83908d]" />
           </label>
-          <button onClick={() => from && to && depart && onSearch(from, to, depart, returning)} className="search-submit" data-testid="button-search"><Search size={18} /><span className="lg:hidden">Find flights</span></button>
+          <button type="button" onClick={submitSearch} className="search-submit" data-testid="button-search"><Search size={18} /><span className="lg:hidden">Find flights</span></button>
         </div>
+        {formError && <p className="airport-error static-error" role="alert">{formError}</p>}
       </div>
     </section>
   );
@@ -171,10 +181,13 @@ function AirportField({ label, value, onChange, placeholder, testId, children }:
     const timer = window.setTimeout(async () => {
       try {
         const response = await fetch(`${apiBaseUrl}/locations/autocomplete?keyword=${encodeURIComponent(term)}`);
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Airport search is unavailable.');
+        const data = await response.json().catch(() => ({})) as { locations?: AirportSuggestion[]; error?: string; detail?: string };
+        if (!response.ok) throw new Error(data.detail || data.error || 'Airport search is unavailable.');
         setResults(data.locations || []); setError('');
-      } catch { setResults([]); setError('Start the backend to search airports.'); }
+      } catch (error) {
+        setResults([]);
+        setError(error instanceof Error ? error.message : 'Check the backend and AeroDataBox subscription.');
+      }
     }, 300);
     return () => window.clearTimeout(timer);
   }, [value]);
@@ -262,7 +275,7 @@ function HomeView() {
   </main>;
 }
 
-function AddTripView({ onSearch }: { onSearch: (from: string, to: string, depart: string, returning: string) => void }) {
+function AddTripView({ onSearch, searchError }: { onSearch: (from: string, to: string, depart: string, returning: string) => void; searchError: string }) {
   const [mode, setMode] = useState<'flight' | 'hotel'>('flight');
   const [hotelSearching, setHotelSearching] = useState(false);
   const [hotelSearch, setHotelSearch] = useState<{ destination: string; checkIn: string; checkOut: string; guests: string } | null>(null);
@@ -304,7 +317,7 @@ function AddTripView({ onSearch }: { onSearch: (from: string, to: string, depart
         <button onClick={() => { setMode('flight'); setHotelSearch(null); }} className={mode === 'flight' ? 'active' : ''} role="tab" aria-selected={mode === 'flight'} data-testid="tab-add-flight"><Plane size={16} /> Flight</button>
         <button onClick={() => setMode('hotel')} className={mode === 'hotel' ? 'active' : ''} role="tab" aria-selected={mode === 'hotel'} data-testid="tab-add-hotel"><Building2 size={16} /> Hotel</button>
       </div>
-      {mode === 'flight' ? <SearchPanel onSearch={onSearch} /> : <HotelSearchPanel onSearch={searchHotels} />}
+      {mode === 'flight' ? <><SearchPanel onSearch={onSearch} />{searchError && <p className="tracking-message" role="alert">{searchError}</p>}</> : <HotelSearchPanel onSearch={searchHotels} />}
       {mode === 'hotel' && hotelSearching && <div className="hotel-loading"><div className="skeleton h-5 w-44 rounded-full" /><div className="skeleton h-3 w-64 rounded-full" /></div>}
       {mode === 'hotel' && !hotelSearching && hotelError && <p className="tracking-message">{hotelError}</p>}
       {mode === 'hotel' && !hotelSearching && hotelSearch && !hotelError && <HotelResults search={hotelSearch} hotels={hotelResults} />}
@@ -312,12 +325,26 @@ function AddTripView({ onSearch }: { onSearch: (from: string, to: string, depart
   </main>;
 }
 
-function BoardingPassView() {
-  const [uploadedFile, setUploadedFile] = useState<string | null>(null);
+function BoardingPassView({ uploadedFile, onUpload, onRemove }: { uploadedFile: File | null; onUpload: (file: File) => void; onRemove: () => void }) {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState('');
   const handleUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) setUploadedFile(file.name);
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    const isImage = ['image/png', 'image/jpeg'].includes(file.type) || /\.(png|jpe?g)$/i.test(file.name);
+    if (!isPdf && !isImage) { setUploadError('Choose a PDF, PNG, or JPG boarding pass.'); return; }
+    if (file.size > 8 * 1024 * 1024) { setUploadError('This file is larger than 8 MB. Choose a smaller boarding pass.'); return; }
+    setUploadError('');
+    onUpload(file);
+    event.currentTarget.value = '';
   };
+  useEffect(() => {
+    if (!uploadedFile) { setPreviewUrl(null); return; }
+    const url = URL.createObjectURL(uploadedFile);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [uploadedFile]);
   return <main className="secondary-page min-h-[calc(100dvh-74px)]">
     <div className="mx-auto max-w-[880px] px-5 py-14 lg:px-0 lg:py-20">
       <div className="eyebrow mb-4"><span className="eyebrow-dot" /> Ready when you are</div>
@@ -328,7 +355,8 @@ function BoardingPassView() {
         <Upload size={17} /> Upload boarding pass
         <span>PDF, PNG or JPG</span>
       </label>
-      {uploadedFile ? <div className="upload-success rise-in"><div className="upload-success-icon"><FileUp size={16} /></div><div><strong>{uploadedFile}</strong><span>Added to this device · a card will appear only when real flight details are available.</span></div><Check size={17} /></div> : <p className="secondary-copy mt-10">Upload a boarding pass to create its travel card here.</p>}
+      {uploadError && <p className="tracking-message" role="alert">{uploadError}</p>}
+      {uploadedFile ? <><div className="upload-success rise-in"><div className="upload-success-icon"><FileUp size={16} /></div><div><strong>{uploadedFile.name}</strong><span>Previewing the file you selected on this device.</span></div><button type="button" onClick={onRemove} aria-label="Remove uploaded boarding pass"><X size={16} /></button></div><section className="boarding-upload-preview rise-in" aria-label="Uploaded boarding pass preview">{uploadedFile.type === 'application/pdf' ? <iframe title={`Preview of ${uploadedFile.name}`} src={previewUrl || undefined} /> : <img src={previewUrl || undefined} alt={`Uploaded boarding pass: ${uploadedFile.name}`} />}<a href={previewUrl || undefined} download={uploadedFile.name}>Download boarding pass</a></section></> : <p className="secondary-copy mt-10">Upload a boarding pass to preview it here.</p>}
     </div>
   </main>;
 }
@@ -479,7 +507,7 @@ const travelCities: TravelCity[] = [
   { id: 'sydney', city: 'Sydney', country: 'Australia', latitude: -33.869, longitude: 151.209 },
   { id: 'melbourne', city: 'Melbourne', country: 'Australia', latitude: -37.814, longitude: 144.963 },
   { id: 'auckland', city: 'Auckland', country: 'New Zealand', latitude: -36.85, longitude: 174.764 },
-  { id: 'istanbul-asia', city: 'Ankara', country: 'Türkiye', latitude: 39.933, longitude: 32.86 },
+  { id: 'ankara', city: 'Ankara', country: 'Türkiye', latitude: 39.933, longitude: 32.86 },
   { id: 'vienna', city: 'Vienna', country: 'Austria', latitude: 48.208, longitude: 16.373 },
   { id: 'prague', city: 'Prague', country: 'Czechia', latitude: 50.076, longitude: 14.438 },
   { id: 'zurich', city: 'Zurich', country: 'Switzerland', latitude: 47.376, longitude: 8.541 },
@@ -689,7 +717,7 @@ function TravelMapView() {
             <div className="world-map-visual">
               <svg
                 className="world-map-svg"
-                viewBox="24 12 952 476"
+                viewBox="0 0 1000 500"
                 preserveAspectRatio="none"
                 role="img"
                 aria-label="Accurate world map with pinned travel cities"
@@ -917,30 +945,31 @@ function LoadingResults() {
   return <LoadingScreen overlay message="Finding the right route" />;
 }
 
-function ResultsView({ search, saved, onToggleSave, onBack, onSelect }: { search: { from: string; to: string; depart: string; returning: string }; saved: Set<string>; onToggleSave: (id: string) => void; onBack: () => void; onSelect: (flight: Flight) => void }) {
+function ResultsView({ search, flights: searchFlights, saved, onToggleSave, onBack, onSelect }: { search: { from: string; to: string; depart: string; returning: string }; flights: Flight[]; saved: Set<string>; onToggleSave: (id: string) => void; onBack: () => void; onSelect: (flight: Flight) => void }) {
   const [sort, setSort] = useState('Recommended');
   const [stops, setStops] = useState('Any stops');
   const [maxPrice, setMaxPrice] = useState(600);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
-  const list = useMemo(() => flights.filter((f) => (stops === 'Nonstop' ? f.stops === 'Nonstop' : true) && f.price <= maxPrice && (!favoritesOnly || saved.has(f.id))).sort((a, b) => sort === 'Price' ? a.price - b.price : sort === 'Duration' ? a.duration.localeCompare(b.duration) : (a.id === 'aurora-1' ? -1 : b.id === 'aurora-1' ? 1 : 0)), [sort, stops, maxPrice, favoritesOnly, saved]);
+  const hasPrices = searchFlights.some((flight) => flight.price !== null);
+  const list = useMemo(() => searchFlights.filter((f) => (stops === 'Nonstop' ? f.stops === 'Nonstop' : true) && (f.price === null || f.price <= maxPrice) && (!favoritesOnly || saved.has(f.id))).sort((a, b) => sort === 'Price' ? (a.price ?? Number.POSITIVE_INFINITY) - (b.price ?? Number.POSITIVE_INFINITY) : sort === 'Duration' ? a.duration.localeCompare(b.duration) : 0), [searchFlights, sort, stops, maxPrice, favoritesOnly, saved]);
   return <main className="results-page min-h-[calc(100dvh-74px)]">
     <div className="mx-auto max-w-[1120px] px-5 py-7 lg:px-0 lg:py-10">
       <button onClick={onBack} className="back-link" data-testid="button-back-search"><ChevronLeft size={17} /> Edit search</button>
       <div className="mb-8 mt-5 flex flex-wrap items-end justify-between gap-5">
-        <div className="rise-in"><div className="eyebrow mb-3"><span className="eyebrow-dot" /> Your next chapter</div><h1 className="results-title">{search.from.split(' (')[0]} <ArrowRight className="inline-block text-[#d58c78]" size={28} /> {search.to.split(' (')[0]}</h1><p className="mt-2 text-sm text-[#6b7777]">{search.depart} · {search.returning} · <span className="font-semibold text-[#36545a]">48 flights</span></p></div>
+        <div className="rise-in"><div className="eyebrow mb-3"><span className="eyebrow-dot" /> Your next chapter</div><h1 className="results-title">{search.from.split(' (')[0]} <ArrowRight className="inline-block text-[#d58c78]" size={28} /> {search.to.split(' (')[0]}</h1><p className="mt-2 text-sm text-[#6b7777]">{search.depart}{search.returning ? ` · ${search.returning}` : ''} · <span className="font-semibold text-[#36545a]">{list.length} scheduled flights</span></p></div>
         <div className="flex items-center gap-2"><button onClick={() => setFavoritesOnly((current) => !current)} className={`filter-button ${favoritesOnly ? 'active' : ''}`} data-testid="button-filter-favorites"><Heart size={15} fill={favoritesOnly ? 'currentColor' : 'none'} /> {favoritesOnly ? 'Favourites' : 'All flights'}</button><label className="filter-select"><span>Sort by</span><select value={sort} onChange={(e) => setSort(e.target.value)} data-testid="select-sort"><option>Recommended</option><option>Price</option><option>Duration</option></select><ChevronDown size={14} /></label><button className="filter-button lg:hidden" data-testid="button-mobile-filters"><SlidersHorizontal size={16} /> Filters</button></div>
       </div>
       <div className="grid items-start gap-8 lg:grid-cols-[230px_1fr]">
         <aside className="filter-panel hidden lg:block">
           <div className="mb-5 flex items-center justify-between"><span className="font-bold text-[#21434b]">Refine</span><Filter size={16} className="text-[#7c8c89]" /></div>
           <div className="filter-group"><p>Stops</p>{['Any stops', 'Nonstop'].map((s) => <button key={s} onClick={() => setStops(s)} className={`filter-option ${stops === s ? 'selected' : ''}`} data-testid={`filter-${s.toLowerCase().replace(' ', '-')}`}><span className="radio-dot" />{s}<span className="ml-auto text-xs text-[#81908d]">{s === 'Nonstop' ? 4 : 5}</span></button>)}</div>
-          <div className="filter-group"><p>Price per traveller</p><div className="price-row"><span>$0</span><span>${maxPrice}</span></div><input type="range" min="250" max="600" step="10" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="price-range" data-testid="input-price-filter" /></div>
+          {hasPrices && <div className="filter-group"><p>Price per traveller</p><div className="price-row"><span>$0</span><span>${maxPrice}</span></div><input type="range" min="250" max="600" step="10" value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="price-range" data-testid="input-price-filter" /></div>}
           <div className="filter-group"><p>Cabin</p><button className="filter-option selected" data-testid="filter-economy"><span className="radio-dot" />Economy <Check size={14} className="ml-auto" /></button><button className="filter-option" data-testid="filter-premium"><span className="radio-dot" />Premium economy</button></div>
-          <div className="filter-note"><CloudSun size={17} /><span>Prices are kind to your calendar — no overnight flights here.</span></div>
+          <div className="filter-note"><CloudSun size={17} /><span>Live scheduled flights from AeroDataBox. Fare prices are not included.</span></div>
         </aside>
         <div className="space-y-3">
-          <div className="flex items-center justify-between text-sm text-[#6b7777]"><span><strong className="text-[#21434b]">{list.length}</strong> good options, sorted for you</span><span className="hidden items-center gap-1.5 sm:flex"><ShieldCheck size={15} className="text-[#5d9994]" /> No hidden fees</span></div>
-          {list.length === 0 ? <div className="empty-state"><div className="empty-icon"><CloudSun size={27} /></div><h2>A little too specific</h2><p>Try widening your price range or bringing one-stop flights back into the mix.</p><button onClick={() => { setMaxPrice(600); setStops('Any stops'); }} className="primary-button" data-testid="button-reset-filters">Reset filters</button></div> : list.map((flight, index) => <FlightCard key={flight.id} flight={flight} saved={saved.has(flight.id)} onToggleSave={onToggleSave} onSelect={onSelect} index={index} />)}
+          <div className="flex items-center justify-between text-sm text-[#6b7777]"><span><strong className="text-[#21434b]">{list.length}</strong> good options, sorted for you</span><span className="hidden items-center gap-1.5 sm:flex">Schedule data · fares are not provided by this API</span></div>
+          {list.length === 0 ? <div className="empty-state"><div className="empty-icon"><CloudSun size={27} /></div><h2>No scheduled flights found</h2><p>Try another date or route. Availability comes from AeroDataBox and depends on its current coverage.</p><button onClick={() => { setMaxPrice(600); setStops('Any stops'); setFavoritesOnly(false); }} className="primary-button" data-testid="button-reset-filters">Reset filters</button></div> : list.map((flight, index) => <FlightCard key={flight.id} flight={flight} saved={saved.has(flight.id)} onToggleSave={onToggleSave} onSelect={onSelect} index={index} />)}
         </div>
       </div>
     </div>
@@ -951,7 +980,7 @@ function FlightCard({ flight, saved, onToggleSave, onSelect, index }: { flight: 
   return <article className={`flight-card rise-in delay-${Math.min(index + 1, 4)}`} data-testid={`card-flight-${flight.id}`}>
     <div className="airline-mark" style={{ background: flight.tint }}><Plane size={18} /></div>
     <div className="flight-main"><div className="flight-route"><div><strong>{flight.depart}</strong><span>{flight.from}</span></div><div className="flight-line"><small>{flight.duration}</small><span><i /><i /><i /></span><small>{flight.stops}</small></div><div className="text-right"><strong>{flight.arrive}</strong><span>{flight.to}</span></div></div><div className="flight-meta"><span className="font-semibold text-[#36545a]">{flight.airline}</span><span className="hidden text-[#87918e] sm:inline">·</span><span>{flight.stopNote}</span>{flight.badge && <span className="deal-badge"><BadgeCheck size={13} /> {flight.badge}</span>}</div></div>
-    <div className="flight-price"><button onClick={() => onToggleSave(flight.id)} className={`heart-button ${saved ? 'saved' : ''}`} aria-label={saved ? `Remove ${flight.airline} from saved trips` : `Save ${flight.airline}`} data-testid={`button-save-${flight.id}`}>{saved ? <Heart size={18} fill="currentColor" /> : <Heart size={18} />}</button><div><span>from</span><strong>${flight.price}</strong></div><button onClick={() => onSelect(flight)} className="select-button" data-testid={`button-select-${flight.id}`}>View flight <ArrowRight size={15} /></button></div>
+    <div className="flight-price"><button onClick={() => onToggleSave(flight.id)} className={`heart-button ${saved ? 'saved' : ''}`} aria-label={saved ? `Remove ${flight.airline} from saved trips` : `Save ${flight.airline}`} data-testid={`button-save-${flight.id}`}>{saved ? <Heart size={18} fill="currentColor" /> : <Heart size={18} />}</button><div><span>{flight.price === null ? 'fare' : 'from'}</span><strong>{flight.price === null ? '—' : `$${flight.price}`}</strong></div><button onClick={() => onSelect(flight)} className="select-button" data-testid={`button-select-${flight.id}`}>View flight <ArrowRight size={15} /></button></div>
   </article>;
 }
 
@@ -977,7 +1006,7 @@ function AccountModal({ onClose }: { onClose: () => void }) {
 }
 
 function SelectedToast({ flight, onClose }: { flight: Flight; onClose: () => void }) {
-  return <div className="selection-toast rise-in"><div className="grid size-9 place-items-center rounded-xl bg-[#dceae5] text-[#397b7b]"><Check size={17} /></div><div><strong>Nice choice.</strong><span>{flight.airline} · ${flight.price} · {flight.depart}</span></div><button onClick={onClose} aria-label="Close selection message" data-testid="button-close-selection"><X size={16} /></button></div>;
+  return <div className="selection-toast rise-in"><div className="grid size-9 place-items-center rounded-xl bg-[#dceae5] text-[#397b7b]"><Check size={17} /></div><div><strong>Nice choice.</strong><span>{flight.airline} · {flight.price === null ? 'fare unavailable' : `$${flight.price}`} · {flight.depart}</span></div><button onClick={onClose} aria-label="Close selection message" data-testid="button-close-selection"><X size={16} /></button></div>;
 }
 
 type AssistantMessage = { id: number; role: 'assistant' | 'user'; text: string };
@@ -1020,7 +1049,10 @@ function AssistantWidget() {
 function Home() {
   const [view, setView] = useState<'home' | 'add' | 'results' | 'saved' | 'boarding' | 'tracking' | 'help' | 'map'>('home');
   const [searching, setSearching] = useState(false);
-  const [search, setSearch] = useState({ from: 'San Francisco (SFO)', to: 'New York (JFK)', depart: 'Oct 18, 2026', returning: 'Oct 25, 2026' });
+  const [searchError, setSearchError] = useState('');
+  const [flightResults, setFlightResults] = useState<Flight[]>([]);
+  const [boardingPass, setBoardingPass] = useState<File | null>(null);
+  const [search, setSearch] = useState({ from: '', to: '', depart: '', returning: '' });
   const [saved, setSaved] = useState<Set<string>>(savedSeed);
   const [accountOpen, setAccountOpen] = useState(false);
   const [selected, setSelected] = useState<Flight | null>(null);
@@ -1041,7 +1073,49 @@ function Home() {
     const timer = window.setTimeout(() => setBooting(false), 900);
     return () => window.clearTimeout(timer);
   }, []);
-  const doSearch = (from: string, to: string, depart: string, returning: string) => { setSearch({ from, to, depart, returning }); setSearching(true); window.setTimeout(() => { setSearching(false); setView('results'); }, 700); };
+  const doSearch = async (from: string, to: string, depart: string, returning: string) => {
+    const origin = from.match(/\(([A-Z]{3})\)$/)?.[1] || (/^[A-Z]{3}$/.test(from.trim()) ? from.trim() : '');
+    const destination = to.match(/\(([A-Z]{3})\)$/)?.[1] || (/^[A-Z]{3}$/.test(to.trim()) ? to.trim() : '');
+    if (!origin || !destination || !depart) { setSearchError('Select origin, destination, and departure date before searching.'); return; }
+    setSearchError('');
+    setSearching(true);
+    try {
+      const params = new URLSearchParams({ origin, destination, departureDate: depart });
+      const response = await fetch(`${apiBaseUrl}/flights/search?${params}`);
+      const body = await response.text();
+      let data: { offers?: Array<{ id: string; flightNumber?: string; airline?: string; status?: string; departure: { iata: string; time?: string }; arrival: { iata: string; time?: string }; aircraft?: string }>; error?: string; detail?: string };
+      try { data = JSON.parse(body) as typeof data; } catch { throw new Error('The flight server returned a web page. Check VITE_API_BASE_URL and make sure the backend is running.'); }
+      if (!response.ok) throw new Error(data.detail || data.error || 'Flight search failed.');
+      const formatTime = (value?: string) => {
+        if (!value) return '—';
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(parsed);
+      };
+      const results: Flight[] = (data.offers || []).map((offer, index) => ({
+        id: offer.id || `${offer.flightNumber || 'flight'}-${index}`,
+        airline: offer.airline || 'Unknown airline',
+        code: offer.flightNumber?.slice(0, 2) || '—',
+        from: offer.departure?.iata || origin,
+        to: offer.arrival?.iata || destination,
+        depart: formatTime(offer.departure?.time),
+        arrive: formatTime(offer.arrival?.time),
+        duration: 'Schedule',
+        stops: 'Any stops',
+        stopNote: `${offer.flightNumber || 'Flight'} · ${offer.status || 'Scheduled'}${offer.aircraft ? ` · ${offer.aircraft}` : ''}`,
+        price: null,
+        cabin: '—',
+        tint: ['#e5b65f', '#6c9ea0', '#d78d7f', '#8b91b9'][index % 4],
+      }));
+      setSearch({ from, to, depart, returning });
+      setFlightResults(results);
+      setView('results');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (error) {
+      setSearchError(error instanceof Error ? error.message : 'Unable to search flights.');
+    } finally {
+      setSearching(false);
+    }
+  };
   const toggleSave = (id: string) => setSaved((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const navigate = (next: string) => {
     setNavigationTarget(next);
@@ -1053,7 +1127,7 @@ function Home() {
       setNavigationTarget(null);
     }, 1100);
   };
-  return <div className={`noise min-h-[100dvh] ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>{booting ? <LoadingScreen /> : <><NavBar view={view} onNavigate={navigate} onAccount={() => setAccountOpen(true)} theme={theme} onThemeToggle={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} navigationPulse={transitioning} navigationTarget={navigationTarget} />{searching ? <LoadingResults /> : view === 'home' ? <HomeView /> : view === 'add' ? <AddTripView onSearch={doSearch} /> : view === 'results' ? <ResultsView search={search} saved={saved} onToggleSave={toggleSave} onBack={() => navigate('add')} onSelect={setSelected} /> : view === 'boarding' ? <BoardingPassView /> : view === 'tracking' ? <FlightTrackingView /> : view === 'help' ? <HelpView /> : view === 'map' ? <TravelMapView /> : <SavedView saved={saved} onToggleSave={toggleSave} onSearch={() => navigate('add')} onSelect={setSelected} />}{selected && <SelectedToast flight={selected} onClose={() => setSelected(null)} />}{accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}<AssistantWidget /></>}</div>;
+  return <div className={`noise min-h-[100dvh] ${theme === 'dark' ? 'theme-dark' : 'theme-light'}`}>{booting ? <LoadingScreen /> : <><NavBar view={view} onNavigate={navigate} onAccount={() => setAccountOpen(true)} theme={theme} onThemeToggle={() => setTheme((current) => current === 'light' ? 'dark' : 'light')} navigationPulse={transitioning} navigationTarget={navigationTarget} />{searching ? <LoadingResults /> : view === 'home' ? <HomeView /> : view === 'add' ? <AddTripView onSearch={doSearch} searchError={searchError} /> : view === 'results' ? <ResultsView search={search} flights={flightResults} saved={saved} onToggleSave={toggleSave} onBack={() => navigate('add')} onSelect={setSelected} /> : view === 'boarding' ? <BoardingPassView uploadedFile={boardingPass} onUpload={setBoardingPass} onRemove={() => setBoardingPass(null)} /> : view === 'tracking' ? <FlightTrackingView /> : view === 'help' ? <HelpView /> : view === 'map' ? <TravelMapView /> : <SavedView saved={saved} onToggleSave={toggleSave} onSearch={() => navigate('add')} onSelect={setSelected} />}{selected && <SelectedToast flight={selected} onClose={() => setSelected(null)} />}{accountOpen && <AccountModal onClose={() => setAccountOpen(false)} />}<AssistantWidget /></>}</div>;
 }
 
 function Router() {
